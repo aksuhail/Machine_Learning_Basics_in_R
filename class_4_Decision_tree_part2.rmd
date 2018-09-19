@@ -1,0 +1,59 @@
+---
+title: "class4classification"
+author: "Suhail AK"
+date: "May 4, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+classification problem
+
+
+```{r}
+hr <- read.csv("HR Analytics.csv")
+View(hr)
+nrow(hr)
+table(hr$Attrition)
+model <- tree(Attrition~.,data = hr)
+{{plot(model)
+  text(model)}}
+library(rpart)
+library(rattle)
+class(hr$Attrition)
+
+model1 <- rpart(Attrition~OverTime+MonthlyIncome+Gender,data = hr)
+fancyRpartPlot(model1)
+
+nrow(hr %>% dplyr::filter(OverTime=="yes"))
+unique(hr$OverTime)
+
+```
+
+```{r}
+#install.packages("ISLR")
+library(ISLR)
+#datset used will be hitters
+hit <- Hitters
+View(Hitters)
+#install.packages("rattle")
+
+
+model <- lm(Salary~Years+Hits,data = hit)
+summary(model)
+
+
+model1 <- tree(Years~.,data = hit)
+summary(model1)
+
+{{plot(model1)
+  text(model1)}}
+hit %>% filter(Salary>450) %>% nrow()
+
+
+
+
+```
+

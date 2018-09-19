@@ -1,0 +1,57 @@
+---
+title: "class2ML(clustering)"
+author: "Suhail AK"
+date: "26 April 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+###Clustering(Unsupervised Learning)
+- here there is no splitting of data into test and train
+- feature selection is not necessary
+- model used is kmeans
+
+##working on iris data set
+
+```{r}
+library(MASS)
+library(dplyr)
+iri <- iris
+str(iri)
+nlevels(iri$Species)
+iri <- iri %>% dplyr::select(-Species)
+View(iri)
+
+#to group using scatter plot
+
+library(ggplot2)
+
+ggplot(iri,aes(x = Petal.Length,y = Petal.Width))+geom_point()
+
+#using kmeans
+
+iris_model <- kmeans(iri,centers = 5)
+iris_model
+iris_model$cluster
+table(iris_model$cluster) #length of each cluster
+iris_model$size
+iris_model$withinss
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+

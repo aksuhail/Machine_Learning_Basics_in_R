@@ -1,0 +1,282 @@
+---
+title: "Credit-default(AssignmentML)"
+author: "Suhail AK"
+date: "May 18, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r message=FALSE, warning=FALSE}
+#reading data and libraries
+library(knitr)
+library(corrplot)
+library(rpart)
+library(rattle)
+library(tree)
+library(caret)
+library(randomForest)
+library(adabag)
+library(e1071)
+library(BBmisc)
+library(class)
+
+cred <- read.csv("credit-default.csv")
+str(cred)
+
+cred$default <- as.factor(cred$default)
+```
+EDA STEPS
+
+```{r}
+#checking for NA values
+
+sapply(cred, function(x) sum(is.na(x)))
+
+#checking for Outliers
+out_percent <- function(df){
+  a<-sapply(df,function(x) is.numeric(x))
+  col <- names(df[,a])
+  numdf <- df[,col]
+  sapply(numdf,function(x) length(boxplot.stats(x)$out)/length(x) * 100)
+} 
+
+out_percent(cred)
+
+```
+
+
+test and train
+
+```{r}
+cred_train <-cred[sample(seq(1,nrow(cred)),  0.7 * nrow(cred)), ]
+cred_test <- cred[sample(seq(1,nrow(cred)),  0.3 * nrow(cred)), ]
+
+dim(cred)
+dim(cred_train)
+dim(cred_test)
+
+```
+
+
+
+
+Building amodel using Decision TREE
+
+```{r}
+#Decision tree
+set.seed(100)
+cred_train <-cred[sample(seq(1,nrow(cred)),  0.7 * nrow(cred)), ]
+set.seed(101)
+cred_test <- cred[sample(seq(1,nrow(cred)),  0.3 * nrow(cred)), ]
+
+
+cred_train$default = as.factor(cred_train$default)
+model <- rpart(default~.,data = cred_train,control = rpart.control(maxdepth = 3))
+fancyRpartPlot(model)
+View(cred_train)
+
+cred_test$predict <- as.data.frame(predict(model,cred_test))
+cred_test$default <- as.factor(cred_test$default)
+
+cred_test$final <- ifelse(cred_test$predict[1]>cred_test$predict[2],1,2)
+cred_test$final <- as.factor(cred_test$final)
+
+
+cm <- confusionMatrix(cred_test$default,cred_test$final,positive = '1')
+acc <- cm$overall['Accuracy'] * 100
+ses <- cm$byClass['Sensitivity'] * 100
+
+modellist <- data.frame()
+temp <- data.frame('Decision Tree',acc[[1]],ses[[1]])
+modellist <- rbind(modellist,temp)
+colnames(modellist) <- c('Model_name','Accuracy','Sensitivity')
+modellist$Model_name = as.character(modellist$Model_name)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#decision tree with feature selection
+set.seed(12)
+cred_train <-cred[sample(seq(1,nrow(cred)),  0.7 * nrow(cred)), ]
+set.seed(13)
+cred_test <- cred[sample(seq(1,nrow(cred)),  0.3 * nrow(cred)), ]
+
+cred_train$default <- as.factor(cred_train$default)
+model <- rpart(default~checking_balance+credit_history+amount,data = cred_train)
+cred_test$default <- as.factor(cred_test$default)
+final <- as.data.frame(predict(model,cred_test))
+final$pred <- ifelse(final$`1`>final$`2`,1,2)
+final$actual <- cred_test$default
+final$pred <- as.factor(final$pred)
+
+
+cm <- confusionMatrix(final$pred,final$actual,positive = '1')
+acc<- cm$overall['Accuracy'] * 100
+ses <- cm$byClass['Sensitivity'] * 100
+
+modellist <- rbind(modellist,c("D-Tree_with_feature_selection",acc[[1]],ses[[1]]))
+          
+```
+
+
+RandomForest
+
+```{r}
+
+#randomForest
+
+
+set.seed(102)
+cred_train <-cred[sample(seq(1,nrow(cred)),  0.7 * nrow(cred)), ]
+set.seed(103)
+cred_test <- cred[sample(seq(1,nrow(cred)),  0.3 * nrow(cred)), ]
+
+
+cred_train$default <- as.factor(cred_train$default)
+mtry <- sqrt(length(colnames(cred_test))-1)
+model <- randomForest(default~.,data = cred_train,ntree=60,mtry=mtry)
+cred_test$predicted <- as.data.frame(predict(model,cred_test))
+str(cred_test)
+cred_test$predicted <- as.factor(cred_test$predicted$`predict(model, cred_test)`)
+
+cm <- confusionMatrix(cred_test$default,cred_test$predicted,positive = '1')
+acc<- cm$overall['Accuracy'] * 100
+ses <- cm$byClass['Sensitivity'] * 100
+
+modellist <- rbind(modellist,c("RandomForest",acc[[1]],ses[[1]]))
+
+```
+
+
+```{r}
+#Adaptive Boosting
+
+
+set.seed(104)
+cred_train <-cred[sample(seq(1,nrow(cred)),  0.7 * nrow(cred)), ]
+set.seed(105)
+cred_test <- cred[sample(seq(1,nrow(cred)),  0.3 * nrow(cred)), ]
+
+
+model <- boosting(default~.,data =cred_train)
+pred_obj <- predict(model,cred_test)
+cred_test$predicted <- pred_obj$class
+cred_test$predicted <- as.factor(cred_test$predicted)
+
+cm <- confusionMatrix(cred_test$default,cred_test$predicted,positive = '1')
+acc<- cm$overall['Accuracy'] * 100
+ses <- cm$byClass['Sensitivity'] * 100
+
+modellist <- rbind(modellist,c("Adaptive_Boosting",acc[[1]],ses[[1]]))
+rownames(modellist) <- c(1,2,3,4)
+
+```
+
+
+
+Naive Bayes
+
+```{r}
+
+set.seed(108)
+cred_train <-cred[sample(seq(1,nrow(cred)),  0.7 * nrow(cred)), ]
+set.seed(109)
+cred_test <- cred[sample(seq(1,nrow(cred)),  0.3 * nrow(cred)), ]
+
+class(cred_train$default)
+cred_train$default <- as.factor(cred_train$default)
+class(cred_test$default)
+cred_test$default <- as.factor(cred_test$default)
+
+model <- naiveBayes(default~.,data = cred_train)
+
+prediction <-as.data.frame(predict(model,cred_test,type = 'raw'))
+prediction$pred <- ifelse(prediction$`1`>prediction$`2`,1,2)
+prediction$pred <- as.factor(prediction$pred)
+
+cm <- confusionMatrix(prediction$pred,cred_test$default,positive = '1')
+acc <- cm$overall['Accuracy'] * 100
+sens <- cm$byClass['Sensitivity'] * 100
+modellist <- rbind(modellist,c('Naive Bayes',acc[[1]],sens[[1]]))
+
+
+```
+
+
+knn Model
+
+```{r}
+cred <- read.csv("credit-default.csv")
+
+dummy_obj <- dummyVars(~.,data=(cred))
+
+
+cred_new <- data.frame(predict(dummy_obj, newdata = cred))
+
+cred_norm <- normalize(cred_new,method = 'range',range = c(0,1))
+
+View(cred_norm)
+cred_ntrain <- cred_norm[sample(seq(1,nrow(cred_norm)), (0.7 * nrow(cred_norm))), ]
+cred_ntest <- cred_norm[sample(seq(1,nrow(cred_norm)), (0.3 * nrow(cred_norm))), ]
+
+
+cred_ntest$predict <- knn(cred_ntrain,cred_ntest,cl=as.factor(cred_ntrain$default),k = 2)
+cred_ntest$default <- as.factor(cred_ntest$default)
+cred_ntest$predict <- as.factor(cred_ntest$predict)
+
+cm <- confusionMatrix(cred_ntest$predict,cred_ntest$default,positive = "1")
+
+acc <- cm$overall["Accuracy"] * 100
+sens <- cm$byClass["Sensitivity"] * 100
+modellist <- rbind(modellist,c('K_nearest',acc[[1]],sens[[1]]))
+```
+Logistic Regression
+
+
+```{r}
+
+set.seed(120)
+cred_train <-cred[sample(seq(1,nrow(cred)),  0.7 * nrow(cred)), ]
+set.seed(121)
+cred_test <- cred[sample(seq(1,nrow(cred)),  0.3 * nrow(cred)), ]
+cred_train$default <- as.factor(cred_train$default)
+
+model <- glm(default~.,data = cred_train,family = binomial)
+
+cred_test$prediction <- predict(model,cred_test,type = "response")
+
+cred_test$mypredict <- ifelse(cred_test$prediction > 0.5,2,1)
+cred_test$default <- as.factor(cred_test$default)
+cred_test$mypredict <- as.factor(cred_test$mypredict)
+
+cm <- confusionMatrix(cred_test$default,cred_test$mypredict,positive = "1")
+acc <- cm$overall["Accuracy"] * 100
+sens <- cm$byClass["Sensitivity"] * 100
+
+modellist <- rbind(modellist,c("Logistic_Regression",acc[[1]],sens[[1]]))
+kable(modellist)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

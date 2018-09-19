@@ -1,0 +1,360 @@
+---
+title: "class5ml"
+author: "Suhail AK"
+date: "May 14, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Gini Impurities
+
+```{r }
+library(ISLR)
+library(dplyr)
+library(tree)
+
+hr = read.csv('HR Analytics.csv')
+
+dim(hr)
+hr_train = hr[1:(0.7*nrow(hr)),]
+hr_test = hr[(0.7*nrow(hr)+1):nrow(hr),]
+
+model<- tree(Attrition~.,data= hr_train)
+{{plot(model)
+  text(model)}}
+
+```
+
+```{r }
+#install.packages("rattle")
+library(rattle)
+library(rpart)
+
+```
+
+```{r }
+m1<- rpart(Attrition~OverTime+Gender,data= hr_train)
+View(hr_train)
+hr_train %>% filter(OverTime=="No" & Attrition==1) %>% nrow()
+hr_train %>% filter(OverTime=="Yes" & Attrition==1) %>% nrow()
+
+
+{{plot(m1)
+  text(m1)}}
+fancyRpartPlot(m1)
+```
+
+#########GINI IMPURITY ###################
+###########Input variable: categorical with two classes
+
+```{r }
+nrow(hr_train)
+left_overtime = hr_train %>% filter(OverTime=='Yes')
+right_overtime = hr_train %>% filter(OverTime=='No')
+nrow(left_overtime)
+nrow(right_overtime)
+```
+
+```{r }
+library(data.table)
+table(left_overtime$Attrition)
+GIl = 1-(85/292)^2-(207/292)^2
+table(right_overtime$Attrition)
+GIr = 1-(75/737)^2-(662/737)^2
+GI = (303/1029)*GIl + (726/1029)*GIr
+GI
+```
+
+```{r }
+left_gender = hr_train %>% filter(Gender=='Male')
+right_gender = hr_train %>% filter(Gender=='Female')
+nrow(left_gender)
+nrow(right_gender)
+```
+
+```{r }
+table(left_gender$Attrition)
+table(right_gender$Attrition)
+GIL = 1-(96/615)^2 - (519/615)^2
+GIR = 1-(64/414)^2 - (350/414)^2
+GI2 = nrow(left_gender)/nrow(hr_train)*GIL+nrow(right_gender)/nrow(hr_train)*GIR
+GI2
+```
+
+```{r }
+table(hr_train$Attrition)
+1-(869/nrow(hr_train))^2 - (160/nrow(hr_train))^2
+```
+
+########### Taking marital status as the input col and splitting it in two parts########
+
+```{r }
+marital_status_uniq = unique(hr_train$MaritalStatus)
+
+for (status in marital_status_uniq){
+  samples_left = hr_train %>% filter(MaritalStatus==status)
+  samples_right = hr_train %>% filter(MaritalStatus !=status)
+  
+  p0_left = nrow(samples_left %>% filter(Attrition==0))/nrow(samples_left)
+  p1_left = nrow(samples_left %>% filter(Attrition==1))/nrow(samples_left)
+  gi_left = 1- p0_left^2 - p1_left^2
+  
+  p0_right = nrow(samples_right %>% filter(Attrition==0))/nrow(samples_right)
+  p1_right = nrow(samples_right %>% filter(Attrition==1))/nrow(samples_right)
+  gi_right = 1- p0_right^2 - p1_right^2
+  
+  gi_status = nrow(samples_left)/nrow(hr_train)*gi_left +
+    nrow(samples_right)/nrow(hr_train)*gi_right
+ 
+  temp = marital_status_uniq[marital_status_uniq!=status]
+  print('Left node')
+  print(status)
+  print('Right node')
+  print(temp)
+  print(gi_status)
+  print("----------------------------------")
+}
+                             
+```
+################ Job column with more than three classes ######################
+
+```{r }
+unique(hr_train$JobRole)
+```
+
+```{r }
+x= c('a','b','c','d')
+combn(x,2,simplify = F)
+```
+
+```{r }
+jobs_uniq = unique(hr_train$JobRole)
+
+combination_left = c()
+combination_right = c()
+gi_all = c()
+for (n in c(1,2,3,4)){
+  comb_n = combn(jobs_uniq,n,simplify = F)
+  for (i in seq(1,length(comb_n))){
+    comb_left = comb_n[[i]]
+    comb_right = jobs_uniq[!jobs_uniq %in% comb_left]
+    
+    samples_left = hr_train %>% filter(JobRole %in% comb_left)
+    samples_right = hr_train %>% filter(JobRole %in% comb_right)
+    
+    p0_left = nrow(samples_left %>% filter(Attrition==0))/nrow(samples_left)
+    p1_left = nrow(samples_left %>% filter(Attrition==1))/nrow(samples_left)
+    gi_left = 1- p0_left^2 - p1_left^2
+    
+    p0_right = nrow(samples_right %>% filter(Attrition==0))/nrow(samples_right)
+    p1_right = nrow(samples_right %>% filter(Attrition==1))/nrow(samples_right)
+    gi_right = 1- p0_right^2 - p1_right^2
+    
+    gi_role = nrow(samples_left)/nrow(hr_train)*gi_left +
+      nrow(samples_right)/nrow(hr_train)*gi_right
+    
+    combination_left = c(combination_left, paste0(comb_left,collapse = ','))
+    combination_right = c(combination_right, paste0(comb_right,collapse = ','))
+    gi_all = c(gi_all, gi_role)
+  }
+}
+result= data.frame(left= combination_left,right = combination_right, gi=gi_all)
+result%>% arrange(gi)%>%head(1)
+View(result)
+
+```
+
+```{r }
+
+model = tree(Attrition~JobRole, data= hr_train)
+levels(hr_train$JobRole)
+{{plot(model)
+  text(model)}}
+
+```
+
+```{r, fig.width=8 }
+model = rpart(Attrition~JobRole, data= hr_train)
+fancyRpartPlot(model)
+model
+```
+
+################ Numerical column Input #############################
+
+```{r }
+
+mi_uniq = sort(unique(hr_train$MonthlyIncome))
+
+length(mi_uniq)
+cuts_mi = (mi_uniq[1:length(mi_uniq)-1] + 
+             mi_uniq[2:length(mi_uniq)])/2
+length(cuts_mi)
+cuts= c()
+gi_all = c()
+for( cut in cuts_mi){
+  samples_left = hr_train %>% filter(MonthlyIncome < cut)
+  samples_right = hr_train %>% filter(MonthlyIncome > cut)
+  
+    p0_left = nrow(samples_left %>% filter(Attrition==0))/nrow(samples_left)
+    p1_left = nrow(samples_left %>% filter(Attrition==1))/nrow(samples_left)
+    gi_left = 1- p0_left^2 - p1_left^2
+    
+    p0_right = nrow(samples_right %>% filter(Attrition==0))/nrow(samples_right)
+    p1_right = nrow(samples_right %>% filter(Attrition==1))/nrow(samples_right)
+    gi_right = 1- p0_right^2 - p1_right^2
+    
+    gi_income = nrow(samples_left)/nrow(hr_train)*gi_left +
+      nrow(samples_right)/nrow(hr_train)*gi_right
+    cuts = c(cuts,cut)
+    gi_all = c(gi_all,gi_income)
+    
+}
+ result= data.frame(cuts,gi_all)
+ View(result)
+result%>% arrange(gi_all)%>%head(1)
+
+```
+
+```{r }
+model = rpart(Attrition~MonthlyIncome, data= hr_train)
+fancyRpartPlot(model)
+model
+```
+
+```{r }
+model = rpart(Attrition~ OverTime, data= hr_train)
+fancyRpartPlot(model)
+model
+```
+###Validate the values in above plot by calculations
+
+```{r }
+table(hr_train$Attrition)
+samples_left = hr_train %>% filter(OverTime=='No')
+samples_right = hr_train %>% filter(OverTime=='Yes')
+nrow(samples_left)
+nrow(samples_left)/ nrow(hr_train)
+
+nrow(samples_left %>% filter(Attrition==1))/nrow(samples_left)
+nrow(samples_right %>% filter(Attrition==1))/nrow(samples_right)
+```
+
+```{r }
+nrow(hr_train %>% filter(Attrition==0))/nrow(hr_train)
+nrow(hr_train %>% filter(Attrition==1))/nrow(hr_train)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## More numerical columns as inputs 
+
+```{r}
+library(rpart)
+library(dplyr)
+library(ggplot2)
+library(rattle)
+hr <- read.csv("HR Analytics.csv")
+View(hr)
+
+model <- rpart(Attrition~MonthlyIncome+Age,data = hr)
+fancyRpartPlot(model)
+
+#cp is complexity parameter
+
+model <- rpart(Attrition~MonthlyIncome+Age,data = hr,cp=0.03)
+fancyRpartPlot(model)
+
+```
+
+```{r}
+#using single numeric column as feature selection
+
+model <- rpart(Attrition~MonthlyIncome,data = hr)
+fancyRpartPlot(model)
+
+
+```
+
+
+
+
+
+
+#more than 3 factors in a column 
+eg: Marital Status has single,married, div
+multiclass input
+
+```{r}
+model <- rpart(Attrition~MaritalStatus, data = hr)
+fancyRpartPlot(model)
+
+```
+
+```{r}
+ms_uniqs <- unique(hr$MaritalStatus)
+N <- nrow(hr)
+GIs <- c()
+
+for(status in ms_uniqs){
+  samples_left <- hr %>% filter(MaritalStatus == status)
+  samples_right <- hr %>% filter(MaritalStatus != status)
+  
+  Nl <- nrow(samples_left)
+  Nr <- nrow(samples_right)
+  
+  #left side gi
+  GI_left <- 1- (nrow(samples_left %>% filter(Attrition==0))/Nl)^2 -
+    (nrow(samples_left %>% filter(Attrition==1))/Nl)^2
+  
+  #right side gi
+  
+  GI_right <- 1- (nrow(samples_right %>% filter(Attrition==0))/Nr)^2 -
+    (nrow(samples_left %>% filter(Attrition==1))/Nr)^2
+  
+  GI <- (Nl(N*GI_left)) + (Nr/N*GI_right)
+  GIs <- c(GIs,GI)
+  
+}
+  
+result = data.frame(left=ms_uniqs,GI=GIs) 
+
+  
+```
+
+
+
+
+```{r}
+
+job_uniqs <- unique(hr$JobRole)
+
+val <- combn(job_uniqs,1,simplify = F)
+
+for (i in val){
+  jobs_left <- i[[1]]
+  print(jobs_left)
+}
+
+
+```
+
+
+
+

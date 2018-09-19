@@ -1,0 +1,362 @@
+---
+title: "class3DTree"
+author: "Suhail AK"
+date: "May 3, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Decision Tree
+
+In LR -> sales = m.TV + C
+
+so in DT
+
+sales = 5.5 if TV < 200 else 100
+
+in DT if condition passes it will be in RHS
+else LHS
+widely used method CART(classification and regression trees)
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tree)
+library(recommenderlab)
+
+
+adv <- read.csv("Advertising.csv")
+View(adv)
+
+model <- tree(sales~TV,data=adv)
+{{plot(model)
+  text(model)}}
+
+
+```
+- Always root node will have all the sample in this case(200 rows)
+
+```{r}
+nrow(adv) #which is 200
+
+adv %>% filter(TV<30.05) %>% summarise(val=n(),avg=mean(sales))#here for 26 samples are there in TV, which has value less than 30.05
+range(adv$TV)
+aa <- adv %>% arrange(TV)
+
+View(aa)
+
+```
+
+
+- to calculate error for Decision TREE for regression problem
+```{r}
+cut <- 100
+df <- data.frame(x=adv$TV,y=adv$sales)
+
+sample_left <- df %>% filter(x<cut)
+sample_right <- df %>% filter(x>cut)
+
+nrow(sample_left)
+
+avg_left <- mean(sample_left$y)
+avg_right <- mean(sample_right$y)
+View(df)
+
+df$yhat <- ifelse(df$x<cut,avg_left,avg_right)
+View(df)
+mse <- sum((df$y-df$yhat)^2)/nrow(df)
+mse
+
+```
+
+class4 starts from here Decision TREE
+
+analyzing the decision tree by finding each cut as shown in the tree function.
+
+
+```{r}
+df <- data.frame(x=adv$TV,y=adv$sales)
+tv_uniq <- sort(unique(df$x)) #its better take a cut when its sorted
+View(df)
+cuts <- (tv_uniq[1:length(tv_uniq)-1] + tv_uniq[2:length(tv_uniq)]) /2
+length(cuts)
+mse_cuts <- c()
+
+for (cut in cuts) {
+  
+  sample_left <- df %>% filter(x<cut)
+  sample_right <- df %>% filter(x>cut)
+  avg_left <- mean(sample_left$y)
+  avg_right <- mean(sample_right$y)
+  
+  
+  df$yhat <- ifelse(df$x<cut,avg_left,avg_right)
+  curr_mse <- sum((df$y-df$yhat)^2)/nrow(df)
+  mse_cuts <- c(mse_cuts,curr_mse)
+  
+}
+result <- data.frame(cuts=cuts,mse=mse_cuts)
+View(result)
+
+result %>% arrange(mse) %>% head(1) #here this cut is after the root node
+
+
+
+```
+
+now for 83 samples ie tv <122.05
+i.e 30.05 is the cut
+
+```{r}
+temp <- adv %>% filter(TV<122.05)
+df <- data.frame(x=temp$TV,y=temp$sales)
+tv_uniq <- sort(unique(df$x)) 
+cuts <- (tv_uniq[1:length(tv_uniq)-1] + tv_uniq[2:length(tv_uniq)]) /2
+length(cuts)
+mse_cuts <- c()
+
+for (cut in cuts) {
+  
+  sample_left <- df %>% filter(x<cut)
+  sample_right <- df %>% filter(x>cut)
+  avg_left <- mean(sample_left$y)
+  avg_right <- mean(sample_right$y)
+  
+  
+  df$yhat <- ifelse(df$x<cut,avg_left,avg_right)
+  curr_mse <- sum((df$y-df$yhat)^2)/nrow(df)
+  mse_cuts <- c(mse_cuts,curr_mse)
+  
+}
+result <- data.frame(cuts=cuts,mse=mse_cuts)
+View(result)
+
+result %>% arrange(mse) %>% head(1)
+
+```
+
+cuts for 240.9
+
+```{r}
+temp <- adv %>% filter(TV>122.05)
+df <- data.frame(x=temp$TV,y=temp$sales)
+tv_uniq <- sort(unique(df$x)) 
+cuts <- (tv_uniq[1:length(tv_uniq)-1] + tv_uniq[2:length(tv_uniq)]) /2
+length(cuts)
+mse_cuts <- c()
+
+for (cut in cuts) {
+  
+  sample_left <- df %>% filter(x<cut)
+  sample_right <- df %>% filter(x>cut)
+  avg_left <- mean(sample_left$y)
+  avg_right <- mean(sample_right$y)
+  
+  
+  df$yhat <- ifelse(df$x<cut,avg_left,avg_right)
+  curr_mse <- sum((df$y-df$yhat)^2)/nrow(df)
+  mse_cuts <- c(mse_cuts,curr_mse)
+  
+}
+result <- data.frame(cuts=cuts,mse=mse_cuts)
+View(result)
+
+result %>% arrange(mse) %>% head(1)
+```
+
+
+for multiple column in decision tree
+
+```{r}
+model2 <- tree(sales~.,data = adv)
+model2
+
+{{plot(model2)
+  text(model2)}}
+
+```
+
+to find the first cut i.e is TV at 122.05
+
+```{r}
+temp <- adv
+df <- data.frame(TV=temp$TV,radio=temp$radio,y=temp$sales)
+
+tv_uniq <- sort(unique(df$TV)) 
+tv_cuts <- (tv_uniq[1:length(tv_uniq)-1] + tv_uniq[2:length(tv_uniq)]) /2
+length(tv_cuts)
+
+radio_uniq <- sort(unique(df$radio)) 
+radio_cuts <- (radio_uniq[1:length(radio_uniq)-1] + radio_uniq[2:length(radio_uniq)]) /2
+length(radio_cuts)
+
+predictors=c(rep("TV",length(tv_cuts)),
+             rep("radio",length(radio_cuts)))
+
+cuts <- c(tv_cuts,radio_cuts)
+mse_cuts <- c()
+
+for (i in seq(1,length(cuts))) {
+  cut=cuts[i]
+  samples_left <- df[df[,predictors[i]]<cut,]
+  samples_right <- df[df[,predictors[i]]>cut,]
+  avg_left <- mean(samples_left$y)
+  avg_right <- mean(samples_right$y)
+  
+  
+  
+  df$yhat <- ifelse(df[,predictors[i]]<cut,avg_left,avg_right)
+  curr_mse <- sum((df$y-df$yhat)^2)/nrow(df)
+  mse_cuts <- c(mse_cuts,curr_mse)
+
+}
+result <- data.frame(predictor=predictors,cuts=cuts,mse=mse_cuts)
+View(result)
+
+result %>% arrange(mse) %>% head(1)
+
+
+```
+
+to find the second cut i.e for TV > 122.05 which will be radio with 26.85 as a cut
+
+```{r}
+
+
+temp <- adv %>% filter(TV>122.05)
+df <- data.frame(TV=temp$TV,radio=temp$radio,y=temp$sales)
+
+tv_uniq <- sort(unique(df$TV)) 
+tv_cuts <- (tv_uniq[1:length(tv_uniq)-1] + tv_uniq[2:length(tv_uniq)]) /2
+length(tv_cuts)
+
+radio_uniq <- sort(unique(df$radio)) 
+radio_cuts <- (radio_uniq[1:length(radio_uniq)-1] + radio_uniq[2:length(radio_uniq)]) /2
+length(radio_cuts)
+
+predictors=c(rep("TV",length(tv_cuts)),
+             rep("radio",length(radio_cuts)))
+
+cuts <- c(tv_cuts,radio_cuts)
+mse_cuts <- c()
+
+for (i in seq(1,length(cuts))) {
+  cut=cuts[i]
+  samples_left <- df[df[,predictors[i]]<cut,]
+  samples_right <- df[df[,predictors[i]]>cut,]
+  avg_left <- mean(samples_left$y)
+  avg_right <- mean(samples_right$y)
+  
+  
+  
+  df$yhat <- ifelse(df[,predictors[i]]<cut,avg_left,avg_right)
+  curr_mse <- sum((df$y-df$yhat)^2)/nrow(df)
+  mse_cuts <- c(mse_cuts,curr_mse)
+
+}
+result <- data.frame(predictor=predictors,cuts=cuts,mse=mse_cuts)
+View(result)
+
+result %>% arrange(mse) %>% head(1)
+
+
+
+
+```
+
+to find the next cut ie. TV as 194.55 as a cut.
+
+```{r}
+
+temp <- adv %>% filter(TV>122.05,radio > 26.85)
+df <- data.frame(TV=temp$TV,radio=temp$radio,y=temp$sales)
+
+tv_uniq <- sort(unique(df$TV)) 
+tv_cuts <- (tv_uniq[1:length(tv_uniq)-1] + tv_uniq[2:length(tv_uniq)]) /2
+length(tv_cuts)
+
+radio_uniq <- sort(unique(df$radio)) 
+radio_cuts <- (radio_uniq[1:length(radio_uniq)-1] + radio_uniq[2:length(radio_uniq)]) /2
+length(radio_cuts)
+
+predictors=c(rep("TV",length(tv_cuts)),
+             rep("radio",length(radio_cuts)))
+
+cuts <- c(tv_cuts,radio_cuts)
+mse_cuts <- c()
+
+for (i in seq(1,length(cuts))) {
+  cut=cuts[i]
+  samples_left <- df[df[,predictors[i]]<cut,]
+  samples_right <- df[df[,predictors[i]]>cut,]
+  avg_left <- mean(samples_left$y)
+  avg_right <- mean(samples_right$y)
+  
+  
+  
+  df$yhat <- ifelse(df[,predictors[i]]<cut,avg_left,avg_right)
+  curr_mse <- sum((df$y-df$yhat)^2)/nrow(df)
+  mse_cuts <- c(mse_cuts,curr_mse)
+
+}
+result <- data.frame(predictor=predictors,cuts=cuts,mse=mse_cuts)
+View(result)
+
+result %>% arrange(mse) %>% head(1)
+
+
+```
+
+Instead of MSE lets calculate variance deviance cutt
+
+
+```{r}
+temp <- adv
+df <- data.frame(TV=temp$TV,radio=temp$radio,y=temp$sales)
+
+tv_uniq <- sort(unique(df$TV)) 
+tv_cuts <- (tv_uniq[1:length(tv_uniq)-1] + tv_uniq[2:length(tv_uniq)]) /2
+length(tv_cuts)
+
+radio_uniq <- sort(unique(df$radio)) 
+radio_cuts <- (radio_uniq[1:length(radio_uniq)-1] + radio_uniq[2:length(radio_uniq)]) /2
+length(radio_cuts)
+
+predictors=c(rep("TV",length(tv_cuts)),
+             rep("radio",length(radio_cuts)))
+
+cuts <- c(tv_cuts,radio_cuts)
+vardev_cuts <- c() #variance deviance cut
+
+for (i in seq(1,length(cuts))) {
+  cut=cuts[i]
+  samples_left <- df[df[,predictors[i]]<cut,]
+  samples_right <- df[df[,predictors[i]]>cut,]
+  avg_left <- mean(samples_left$y)
+  avg_right <- mean(samples_right$y)
+  
+  
+  
+  df$yhat <- ifelse(df[,predictors[i]]<cut,avg_left,avg_right)
+  curr_vardev <- var(df$y) - (nrow(samples_left)/nrow(df)) * var(samples_left$y) -
+    (nrow(samples_right)/nrow(df)) * var(samples_right$y)
+  vardev_cuts <- c(vardev_cuts,curr_vardev)
+
+}
+result <- data.frame(predictor=predictors,cuts=cuts,vardeviation=vardev_cuts)
+View(result)
+
+result %>% arrange(-vardev_cuts) %>% head(1)
+
+
+```
+
+
+
+
+
+
+

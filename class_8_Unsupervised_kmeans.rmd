@@ -1,0 +1,181 @@
+---
+title: "class9ml kmeans"
+author: "Suhail AK"
+date: "May 18, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+###k-means
+- unsupervised learning
+- input should be numerical
+- if not then convert
+- There is no training or testing concept
+
+
+###Clustering(Unsupervised Learning)
+- here there is no splitting of data into test and train
+- feature selection is not necessary
+- model used is kmeans
+
+##working on iris data set
+
+```{r}
+library(MASS)
+library(dplyr)
+iri <- iris
+str(iri)
+nlevels(iri$Species)
+iri <- iri %>% dplyr::select(-Species)
+View(iri)
+
+#to group using scatter plot
+
+library(ggplot2)
+
+ggplot(iri,aes(x = Petal.Length,y = Petal.Width))+geom_point()
+
+#using kmeans
+
+iris_model <- kmeans(iri,centers = 5)
+iris_model
+iris_model$cluster
+table(iris_model$cluster) #length of each cluster
+iris_model$size
+iris_model$withinss
+
+```
+
+kmeans today using odi dataset
+
+```{r}
+odi <- read.csv("odi-batting.csv")
+View(odi)
+odi$century <- ifelse(odi$Runs>99,1,0)
+odi$ducks <- ifelse(odi$Runs==0,1,0)
+odi$above150 <- ifelse(odi$Runs>149,1,0)
+odi$fifties <- ifelse(odi$Runs>49&odi$Runs<99,1,0)
+odi$misses_century <- ifelse(odi$Runs>90& odi$Runs<99,1,0)
+player_summary <- odi %>% group_by(Player) %>% summarise(matches=n(),
+                                                         total_runs=sum(Runs,na.rm = T),
+                                                         avg_runs=mean(Runs,na.rm = T),
+                                                         centuries=sum(century,na.rm = T),
+                                                         ducks=sum(ducks,na.rm = T),
+                                                         fifties=sum(fifties,na.rm = T),
+                                                         above_150=sum(above150,na.rm = T),
+                                                        misses_century=sum(misses_century,na.rm = T))
+View(player_summary)
+```
+
+
+building the model
+while building remove all the categorical column
+and normalize the data. using normalize function from library(class)
+
+```{r}
+top_players <- player_summary %>% arrange(-total_runs) %>% head(100)
+
+data_kmeans <- top_players %>% dplyr::select(-Player)
+data_norm <- normalize(data_kmeans,range = c(0,1),method = 'range')
+
+
+model_kmeans <- kmeans(data_norm,centers = 5)
+top_players$cluster <- model_kmeans$cluster
+View(top_players)
+
+barplot(table(top_players$cluster))
+table(top_players$cluster)
+model_kmeans$size
+
+##total within
+model_kmeans$tot.withinss
+
+## withinsum of squares  this is distance of each clusters from the centroid , basically it should be less(close to each other)
+
+model_kmeans$withinss
+
+
+## between sum of squares (distance between 2 clusters hence this value should be ideally far or higher)
+
+model_kmeans$betweenss
+
+
+
+```
+
+
+
+elbow method:  to find the optimal number of clusters.
+plot with total_withinss as y axis
+x-axis as no. of clusters
+
+
+
+
+
+```{r}
+View(data_norm)
+dim(data_norm)
+dim(as.matrix(dist(data_norm)))
+data_norm_2d <- cmdscale(dist(data_norm)) #reducing the dimension
+dim(data_norm_2d)
+data_norm_2d <- as.data.frame(data_norm_2d)
+plot(data_norm_2d)
+data_norm_2d$cluster <- model_kmeans$cluster
+data_norm_2d$cluster <- as.factor(data_norm_2d$cluster)
+
+library(ggplot2)
+ggplot(data_norm_2d,aes(x=V1,y=V2,color=cluster))+geom_point()
+
+```
+
+
+do the same for hr analytics
+```{r}
+
+
+
+```
+
+
+
+
+##hierarchical clustering
+good for small data set
+
+```{r}
+names(data_norm)
+hclust_model <- hclust(dist(data_norm))
+plot(hclust_model)
+View(top_players)
+
+```
+
+### get cluster labels
+
+```{r}
+top_players <- player_summary %>% arrange(-total_runs) %>% head(100)
+data_norm <- normalize(data_kmeans,range = c(0,1),method = 'range')
+data_norm$cluster <- cutree(hclust_model,k = 4)
+data_norm_2d <- cmdscale(dist(data_norm %>% dplyr::select(-cluster)))
+data_norm_2d <- as.data.frame(data_norm_2d)
+data_norm_2d$cluster <- as.factor(data_norm$cluster)
+ggplot(data_norm_2d,aes(x=V1,y=V2,color=cluster))+geom_point()
+View(data_norm_2d)
+
+```
+
+
+```{r}
+install.packages("heatmaply")
+
+cor_players <- cor(t(data_norm %>% head(10) %>% dplyr::select(-cluster)))
+corrplot(cor_players,order = 'hclust',addrect = 2)
+
+
+```
+

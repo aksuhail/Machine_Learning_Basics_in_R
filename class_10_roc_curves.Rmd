@@ -1,0 +1,377 @@
+---
+title: "class11"
+author: "Suhail AK"
+date: "June 20, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+library(randomForest)
+library(rpart)
+library(tree)
+#install.packages("tree")
+library(rattle)
+library(caret)
+library(ggplot2)
+library(dplyr)
+
+
+hr <- read.csv("HR Analytics.csv")
+
+
+hr_train = hr[1:(0.7*nrow(hr)),]
+hr_test = hr[(0.7*nrow(hr)+1):nrow(hr),]
+
+
+#train_index <- sample(c(0,1) , size = nrow(hr), replace = TRUE, prob = c(0.7, 0.3))
+
+
+hr_test$Attrition <- as.factor(hr_test$Attrition)
+hr_train$Attrition <- as.factor(hr_train$Attrition)
+
+model_rf <- randomForest(Attrition~., data = hr_train)
+pred_probs <- predict(model_rf,hr_test, type='prob')
+View(pred_probs)
+table(hr_train$Attrition)
+
+
+hr_test$pred_class <- ifelse(pred_probs[,2]>0.4, 1, 0) #change 0.5 to 0.4 
+hr_test$pred_class <- as.factor(hr_test$pred_class)
+
+confusionMatrix(hr_test$pred_class,hr_test$Attrition,positive = '1')
+
+table(hr$Attrition)/nrow(hr)
+
+```
+```{r}
+##ROC Curves
+#install.packages("ROCR")
+#install.packages("pROC")
+library(ROCR)
+library(pROC)
+x1 <- roc(hr_test$Attrition,pred_probs[,2])
+plot(x1)
+x1$thresholds
+auc(x1)
+
+```
+
+
+```{r}
+library(dplyr)
+library(class)
+library(caret)
+library(BBmisc)
+
+hr <- read.csv("HR Analytics.csv")
+
+set.seed(100)
+hr_train <- hr[sample(seq(1,nrow(hr)), (0.7 * nrow(hr))), ]
+hr_test <- hr[sample(seq(1,nrow(hr)), (0.3 * nrow(hr))), ]
+
+
+#converting all the columns to numerical column using dummy variable
+
+dummy_obj <- dummyVars(~.,data=hr %>% dplyr::select(-Over18))
+class(dummy_obj)
+hr_new <- data.frame(predict(dummy_obj, newdata = hr))
+dim(hr_new)
+
+
+
+##normalising
+#install.packages("BBmisc")
+
+hr_norm <- normalize(hr_new,method = 'range',range = c(0,1))
+
+hr_ntrain <- hr_norm[sample(seq(1,nrow(hr_norm)), (0.7 * nrow(hr_norm))), ]
+hr_ntest <- hr_norm[sample(seq(1,nrow(hr_norm)), (0.3 * nrow(hr_norm))), ]
+
+
+#model
+
+hr_ntest$predict <- knn(hr_ntrain,hr_ntest,cl=as.factor(hr_ntrain$Attrition),k = 15,prob = T)
+
+
+hr_ntest$Attrition <- as.factor(hr_ntest$Attrition)
+hr_ntest$predict <- as.factor(hr_ntest$predict)
+View(hr_ntest$predict)
+confusionMatrix(hr_ntest$predict,hr_ntest$Attrition,positive = "1")
+
+#to plot roc curves.
+View(hr_ntest$predict)
+probs <- data.frame(prob=attr(hr_ntest$predict,'prob'),class=hr_ntest$predict)
+probs[probs['class']==0,'prob'] = 1 - probs[probs['class']==0,'prob']
+View(probs)
+
+x <- roc(hr_ntest$Attrition,probs$prob)
+
+{{plot(x1)
+  lines(x,col='red')}}
+
+```
+
+Area under the curve
+
+```{r}
+auc(x1) #for rf
+
+auc(x) #for knn 
+
+pred_obj <- prediction(pred_probs[,1],as.factor(hr_test$Attrition))
+View(pred_obj)
+cost.perf <- performance(pred_obj,'cost')
+y.values <- cost.perf@y.values[[1]]
+y.values <- y.values[!y.values %in% c(Inf, -Inf)]
+pred_obj@cutoffs[[1]][which.min(y.values)]
+
+
+hr_test$new_class <- as.factor(ifelse(pred_probs[,2] > 0.43,1,0))
+
+hr_test$new_class <- as.factor(hr_test$new_class)
+hr_test$Attrition <- as.factor(hr_test$Attrition)
+confusionMatrix(hr_test$Attrition,hr_test$new_class,positive = "1")
+
+```
+
+
+probabilities calibration
+
+
+```{r}
+histogram(pred_probs[pred_probs[,2] > 0.5,2])
+
+
+```
+
+
+loading mushroom data
+
+```{r}
+
+shrooms <- read.csv("mushroom_full.csv")
+
+set.seed(100)
+shrooms_train <- shrooms[1:(0.7 * nrow(shrooms)), ]
+
+shrooms_test <- shrooms[(0.7*nrow(shrooms)+1):nrow(shrooms), ]
+
+
+
+model <- randomForest(class~.,shrooms_train)
+pred <- predict(model,shrooms_test,type = "prob")
+
+pred_final <- as.factor(ifelse(pred[,1]>pred[,2],"EDIBLE","POISONOUS"))
+
+confusionMatrix(pred_final,shrooms_test$class,positive = "POISONOUS")
+table(shrooms$class)
+
+
+histogram(pred[pred[,2]>0.5,2])
+
+
+```
+
+
+
+```{r}
+shrooms_test$prob_pois <- pred[,2]
+
+x_vals <- c()
+y_vals <- c()
+
+for (i in seq(0,1,0.05)) {
+start_bin <- i
+end_bin <- i+0.05
+x_vals <- c(x_vals,(start_bin+end_bin)/2)
+
+
+df_subset <- shrooms_test %>% filter(prob_pois > start_bin & prob_pois < end_bin)
+curr_y <- nrow(df_subset %>% filter(class=='POISONOUS')) / nrow(df_subset)
+
+y_vals <- c(y_vals,curr_y)
+
+}
+
+plot(x_vals,y_vals,type="l")
+
+```
+
+
+
+
+CLASS 12
+
+- For caliberation using randomforrest for prediction and then using logistic regression for updating threshold.
+
+
+
+```{r}
+
+hr <- read.csv("HR Analytics.csv")
+
+set.seed(100)
+hr_train <- hr[sample(seq(1,nrow(hr)), (0.7 * nrow(hr))), ]
+
+hr_test <- hr[sample(seq(1,nrow(hr)), (0.3 * nrow(hr))), ]
+
+
+hr_test$Attrition <- as.factor(hr_test$Attrition)
+hr_train$Attrition <- as.factor(hr_train$Attrition)
+
+model_rf <- randomForest(Attrition~., data = hr_train)
+pred <- predict(model_rf,hr_test,type='prob') #prediction using test data
+
+
+
+pred_probs <- as.data.frame(predict(model_rf,hr_train, type='prob')) #prediction using train data
+
+
+pred_probs$class <- ifelse(pred_probs[,2] > 0.5, 1, 0) #change 0.5 to 0.4 
+pred_probs$class <- as.factor(pred_probs$class)
+colnames(pred_probs) <- c("prob_0","prob_1","class")
+
+calib_model <- glm(class~prob_1, data = pred_probs,family = binomial)
+calib_model
+test_probs <- as.data.frame(predict(model_rf, hr_test,type = 'prob'))
+colnames(test_probs) <- c('prob_0','prob_1')
+View(test_probs)
+
+test_probs$prob_1_new <- predict(calib_model,test_probs,type = 'response')
+
+
+test_probs$pred_class <- as.factor(ifelse(test_probs$prob_1>0.5, 1,0))
+
+test_probs$pred_class_new <- as.factor(ifelse(test_probs$prob_1_new > 0.5,1,0))
+
+
+
+confusionMatrix(test_probs$pred_class,test_probs$pred_class_new,positive = "1")
+
+confusionMatrix(test_probs$pred_class,hr_test$Attrition,positive = '1') # old value accuracy
+
+confusionMatrix(test_probs$pred_class_new,hr_test$Attrition,positive = '1') # new value accuracy
+
+
+
+
+```
+
+
+
+```{r}
+library(pROC)
+library(ROCR)
+
+#updated threshold
+
+pred_obj <- prediction(test_probs[,'prob_1_new'], as.factor(hr_test$Attrition))
+cost.perf <- performance(pred_obj,"cost")
+pred_obj@cutoffs[[1]][which.min(cost.perf@y.values[[1]])]
+
+
+m2 <- roc(hr_test$Attrition,test_probs$prob_1_new)
+m1 <- roc(hr_test$Attrition,test_probs$prob_1)
+
+{{
+  plot(m1)
+  lines(m2,col="red")
+}}
+
+
+```
+ 
+
+cross validation
+
+```{r}
+
+library(caret)
+library(dplyr)
+hr <- read.csv("HR Analytics.csv")
+hr$Attrition <- as.factor(hr$Attrition)
+seed <- 7
+control <- trainControl(method = "repeatedcv",number = 10, repeats = 2)
+#cross validation for 10 folds repeat 2
+
+metric <- "Accuracy"
+tunegrid <- expand.grid(.mtry=c(5))
+#tunegrid <- expand.grid(.mtry=c(5,6,7))
+rf_default <- train(Attrition~.,data = (hr %>% dplyr::select(-Over18)), method="rf", metric=metric, trControl=control, tuneGrid=tunegrid)
+
+rf_default$results
+
+rf_default$results
+
+
+```
+
+multiple mtry
+
+```{r}
+hr$Attrition <- as.factor(hr$Attrition)
+seed <- 7
+control <- trainControl(method = "repeatedcv",number = 10, repeats = 2)
+#cross validation for 10 folds repeat 2
+
+metric <- "Accuracy"
+tunegrid <- expand.grid(.mtry=c(5,6,7))
+rf_default <- train(Attrition~.,data = (hr %>% dplyr::select(-Over18)), method="rf", metric=metric, trControl=control, tuneGrid=tunegrid)
+
+rf_default$results
+
+
+
+```
+
+
+for kappa value
+
+```{r}
+str(pred_probs)
+confusionMatrix(test_probs$pred_class,as.factor(hr_test$Attrition))
+
+
+```
+
+car_data
+
+```{r}
+
+car <- read.csv("car_data.csv")
+df <- car
+set.seed(100)
+
+train.rows <- createDataPartition(df$class, p=0.7, list = F)
+train <- df[train.rows, ]
+test <- df[-train.rows, ]
+table(df$class) / nrow(df)
+table(train$class)/nrow(train)
+
+table(test$class) / nrow(train)
+nrow(df)
+
+
+model_rf <- randomForest(class~., data = train)
+test$pred_class <- as.factor(predict(model_rf,test))
+confusionMatrix(test$pred_class,test$class)
+
+
+```
+#cross checking for accurate 
+
+```{r}
+test %>% filter(pred_class=='acc' & class == 'acc') %>% nrow()/test %>% filter(class=='acc') %>% nrow()
+
+
+```
+
+
+
+

@@ -1,0 +1,227 @@
+---
+title: "ML class6"
+author: "Suhail AK"
+date: "May 15, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+library(rpart)
+library(rattle)
+```
+
+ACCURACY, CONFUSION MATRIX
+
+
+
+
+```{r}
+hr <- read.csv("HR Analytics.csv")
+str(hr)
+hr$Attrition <- as.factor(hr$Attrition)
+model <- rpart(Attrition~., data = hr)
+fancyRpartPlot(model)
+View(hr)
+
+#using only monthlyincome and overtime
+model <- rpart(Attrition~MonthlyIncome+OverTime, data = hr)
+fancyRpartPlot(model)
+
+
+```
+
+
+Prediction
+
+case1 : - overtime==NO, if so prediction is 0
+        - overtime == yes, MI <2475 prediction is 1
+        - overtime == yes, MI > 2475 prediction is 0
+
+```{r}
+
+hr_train <- hr[sample(seq(1,nrow(hr)), (0.7 * nrow(hr))), ]
+
+hr_test <- hr[sample(seq(1,nrow(hr)), (0.3 * nrow(hr))), ]
+
+
+model <- rpart(Attrition~Gender+MonthlyIncome+OverTime, data = hr_train)
+
+fancyRpartPlot(model)
+
+pred <- predict(model, hr_test)
+
+View(pred)
+
+hr[1189,c('Gender','MonthlyIncome','OverTime','Attrition')]
+
+```
+```{r}
+hr[1189,c('Gender','MonthlyIncome','OverTime','Attrition')]
+```
+```{r}
+x <- hr_train %>% filter(OverTime=='Yes', MonthlyIncome>=3924)
+table(x$Attrition)
+154/nrow(x)*100
+
+```
+
+#to find the accuracy of the model
+
+```{r}
+model <- rpart(Attrition~Gender+MonthlyIncome+OverTime, data = hr_train)
+
+fancyRpartPlot(model)
+
+result <- as.data.frame(predict(model, hr_test))
+View(result)
+
+hr_test$predict <- ifelse(result$`0`>0.5,0,1)
+
+View(hr_test[,c('Attrition','predict')])
+
+val <- hr_test %>% filter(predict==Attrition) %>% nrow()
+accuracy <- val/nrow(hr_test)*100
+accuracy
+
+```
+
+COnfusion Matrix has 4 parameters
+- True positive (TP)    pred=1 actual=1  POWER
+- True negative (TN)    pred=0 actual=0  
+- False Positive (FP)   pred=1 actual=0  type 1 error
+- False negative (FN)   pred=0 actual=1  type 2 error
+
+
+```{r}
+library(caret)
+table(hr_test$predict,hr_test$Attrition)
+
+```
+
+```{r}
+
+hr_test %>% filter(Attrition==1,predict==1) %>% nrow() #TP
+hr_test %>% filter(Attrition==0,predict==0) %>% nrow() #TN
+hr_test %>% filter(Attrition==1,predict==0) %>% nrow() #FP
+hr_test %>% filter(Attrition==0,predict==1) %>% nrow() #FN
+
+```
+
+```{r}
+hr_test$predict <- as.factor(hr_test$predict)
+cm <- confusionMatrix(hr_test$predict,hr_test$Attrition,positive = '1')
+cm$overall["Accuracy"]
+cm$byClass["Sensitivity"]
+```
+
+There is also ROC parameter (receiver operating characteristics)
+
+
+different paramter that is used to control the tree
+rpart.control
+complexity parameter
+
+```{r}
+
+model <- rpart(Attrition~JobRole,data = hr,control=rpart.control(cp=-1))
+fancyRpartPlot(model)
+
+
+```
+
+
+eg of parameters of rpart.control 
+- rpart.control(minsplit = 20, minbucket = round(minsplit/3), cp = 0.01, 
+              maxcompete = 4, maxsurrogate = 5, usesurrogate = 2, xval = 10,
+              surrogatestyle = 0, maxdepth = 30, .)
+-minsplit: decides whether to split data / not based on minimum value.
+
+- cp is used on terminal nodes and gives corresponding error for each cp (error between)
+- so we find the best cp that gives less error.
+
+```{r}
+model <- rpart(Attrition~.,data = hr,control = rpart.control(cp=0))
+fancyRpartPlot(model)
+```
+
+cp increases no of terminal variables which eventually overfits the model
+the accuracy increases if we use cp -1 on training then training data will be overfitted hence it is not good for data
+which comes outside the training model
+there will be lot of error when applied on test data
+- as you reduce the complexity parameter(cp) the tree size increases
+
+```{r}
+model <- rpart(Attrition~Gender+MonthlyIncome+OverTime+JobRole, data = hr_train,control = rpart.control(cp=-1,minsplit = 2,minbucket = 1))
+
+fancyRpartPlot(model)
+
+result <- as.data.frame(predict(model, hr_train))
+
+
+hr_train$predict <- ifelse(result$`0`>0.5,0,1)
+
+View(hr_train[,c('Attrition','predict')])
+
+val <- hr_train %>% filter(predict==Attrition) %>% nrow()
+accuracy <- val/nrow(hr_train)*100
+accuracy
+
+
+```
+
+
+to check on test data see the accuracy
+
+
+```{r}
+model <- rpart(Attrition~Gender+MonthlyIncome+OverTime+JobRole, data = hr_train,control = rpart.control(cp=-1,minsplit = 2,minbucket = 1))
+
+fancyRpartPlot(model)
+
+result <- as.data.frame(predict(model, hr_test))
+
+
+hr_test$predict <- ifelse(result$`0`>0.5,0,1)
+
+View(hr_test[,c('Attrition','predict')])
+
+val <- hr_test %>% filter(predict==Attrition) %>% nrow()
+accuracy <- val/nrow(hr_test)*100
+accuracy
+
+
+```
+
+xerror is a cross tabulation error 
+- hence find the minimum xerror and select the cp for that error which will guve the best fit for our model
+
+
+```{r}
+model <- rpart(Attrition~JobRole+MonthlyIncome+OverTime,data = hr)
+fancyRpartPlot(model)
+print(summary(model))
+```
+Ensemble Methods
+- bagging
+- boosting
+- stacking
+
+#simple decision tree
+
+```{r}
+model <- rpart(Attrition~.,data = hr_train)
+result <- as.data.frame(predict(model,hr_test))
+hr_test$predict <- ifelse(result$`0`>0.5,0,1)
+hr_test$predict <- as.factor(hr_test$predict)
+confusionMatrix(hr_test$predict,hr_test$Attrition,positive = '1')
+
+table(hr$Attrition)
+
+
+1233/nrow(hr_train)
+
+```
+

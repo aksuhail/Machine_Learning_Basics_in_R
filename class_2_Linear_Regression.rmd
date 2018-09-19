@@ -1,0 +1,114 @@
+---
+title: "Linear Regression(class2)"
+author: "Suhail AK"
+date: "26 April 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Linear Regression on advertisement data
+
+- to find values of m(slope) and c(intercept) where e(error) is minimum.
+- ie to find global minimum using gradient descent
+
+```{r}
+adv <- read.csv("Advertising.csv")
+#install.packages("plotly")
+library(plotly)
+ggplot(adv,aes(x=TV,y = sales))+ geom_point() +geom_smooth(method = "lm")
+
+
+
+```
+
+Splitting data
+
+```{r}
+
+adv_training <- adv[sample(seq(1,200),0.8*nrow(adv)),]
+adv_testing <- adv[sample(seq(1,200),0.2*nrow(adv)),]
+
+adv_model <- lm(sales~TV,data = adv_training)
+adv_model
+
+```
+
+
+```{r}
+m1 <- 0.5
+c1 <- 10
+{{plot(adv_training$TV,adv_training$sales,xlab = "TV",ylab = "Sales")
+abline(a=c1,b=m1)}}
+
+
+```
+
+
+
+usign the lm command u can get m and c.
+to know which trend line is best whithout graphice one should take error
+diff errors for different trend lines 
+u r choosing the line of best fit by using maths rather than just doing it graphically
+
+```{r}
+#mse mean sum of error
+mse = function(x,y,m,c){
+  
+  yhat=m*x+c
+  error=sum((y-yhat)^2)/length(x)# error formula from book with yhat 
+  return(error)
+
+  }
+
+samplex = c(1,2,3,4,5)
+sampley = c(10,20,30,40,50)
+
+m=4
+c=1
+mse(samplex,sampley,m,c)
+
+iterations=100
+cspace=seq(1,15,length.out = iterations)
+mspace=seq(-0.6,0.6,length.out = iterations)
+zspace=c()
+
+
+for(i in mspace){
+  
+  for(j in cspace){
+    
+  zspace=c(zspace,mse(adv_training$TV, adv_training$sales,i,j))
+    
+  }
+}
+
+print(length(zspace))
+temp=data.frame(m=mspace,c=cspace,mse=zspace)
+temp%>%arrange(zspace)%>%head(5)
+zspace
+
+zmat=matrix(zspace, 100,100)
+plot_ly(x=mspace,y=cspace,z=zmat)%>%add_surface()
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,238 @@
+---
+title: "class8mlknear"
+author: "Suhail AK"
+date: "May 17, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+k-nearest for classification problem.
+k- no of neighbours(how many close observations to pick)
+k=sqrt(no. of training samples)- basic method works in many cases
+
+
+-use of euclidian distance
+when its a regression problem take mean / or median incase of outliers
+and for classification problem take polling.
+
+training: convert everything to numerical column and normalise the data.
+in knearest - training takes less time
+           - testing takes lot of time
+
+
+p1-first row in testing dataset
+p2-first row in traning dataset
+
+find euclidian distance between p1 and p2
+similarly find euclidian distance between p1 and all the rows in training dataset from which pick the best 3 row with minimum distance and check the majority in the output(Attrition in this case)
+i.e if two rows contains 0. then go with 0 as output.
+
+
+
+
+lasy learner: there is no learning function in training dataset, the prediction is very expensive and slow. since it has to scan with the entire training dataset for the prediction.
+
+
+
+types of columns
+
+step1:
+
+1.ordered - good,best,verybest (1,2,3)
+2.unordered - F M(0,1)
+3.City - c1,c2,c3,c4.. spread this and convert it to 0 and 1s
+
+
+step2: standardise the data
+
+scaling -  mean =0, SD=1
+
+normalisation - convert everything between 0 and 1
+
+
+```{r}
+hr <- read.csv("HR Analytics.csv")
+
+hr_train <- hr[sample(seq(1,nrow(hr)), (0.7 * nrow(hr))), ]
+hr_test <- hr[sample(seq(1,nrow(hr)), (0.3 * nrow(hr))), ]
+
+
+
+```
+
+
+
+```{r}
+library(dplyr)
+iri <- iris
+iri_train<- iri[sample(seq(1,nrow(iri)), (0.8 * nrow(iri))), ]
+iri_test <-iri[sample(seq(1,nrow(iri)), (0.2 * nrow(iri))), ]
+View(iri)
+
+
+predictors <- c("Sepal.Length","Sepal.Width","Petal.Length","Petal.Width")
+k <- 11
+for (i in seq(1,nrow(iri_test))) {
+  neigh_dist <- c()
+  neigh_id <- c()
+  p1 <- iri_test[i,predictors]
+  for (j in seq(1,nrow(iri_train))) {
+    p2 <- iri_train[j,predictors]
+    calc_dist <- dist(rbind(p1,p2))
+    iri_train[j,'dist'] <- calc_dist
+    
+  }
+  nn <- iri_train %>% arrange(dist) %>% head(k)
+  nn_poll <- table(nn$Species)
+  iri_test[i,'pred'] <- names(nn_poll)[which.max(nn_poll)]
+}
+sum(iri_test$Species==iri_test$pred)/nrow(iri_test)
+
+View(iri_test)
+View(iri_train)
+
+  
+
+```
+
+
+knn takes only numerical column hence convert using dummy variable.
+#convert categorical column to numerical column.
+using normalisation method
+
+```{r}
+
+hr <- read.csv("HR Analytics.csv")
+View(hr)
+dim(hr)
+
+hr_train <- hr[sample(seq(1,nrow(hr)), (0.7 * nrow(hr))), ]
+hr_test <- hr[sample(seq(1,nrow(hr)), (0.3 * nrow(hr))), ]
+
+library(caret)
+
+#converting all the columns to numerical column using dummy variable
+
+dummy_obj <- dummyVars(~.,data=hr %>% dplyr::select(-Over18))
+class(dummy_obj)
+hr_new <- data.frame(predict(dummy_obj, newdata = hr))
+View(hr_new)
+
+
+
+##normalising
+x <- c(1,2,3,4,5)
+#install.packages("BBmisc")
+library(BBmisc)
+library(class)
+hr_norm <- normalize(hr_new,method = 'range',range = c(0,1))
+
+hr_ntrain <- hr_norm[sample(seq(1,nrow(hr_norm)), (0.7 * nrow(hr_norm))), ]
+hr_ntest <- hr_norm[sample(seq(1,nrow(hr_norm)), (0.3 * nrow(hr_norm))), ]
+
+View(hr_ntest)
+#model
+
+hr_ntest$predict <- knn(hr_ntrain,hr_ntest,cl=as.factor(hr_ntrain$Attrition),k = 31)
+hr_ntest$Attrition <- as.factor(hr_ntest$Attrition)
+hr_ntest$predict <- as.factor(hr_ntest$predict)
+
+confusionMatrix(hr_ntest$predict,hr_ntest$Attrition,positive = "1")
+
+#gives 100% sensitivity in this case 
+
+```
+
+
+
+```{r}
+hr <- read.csv("HR Analytics.csv")
+
+dummy_obj <- dummyVars(~.,data=(hr %>% dplyr::select(-Over18)))
+hr_new <- data.frame(predict(dummy_obj, newdata = hr))
+
+hr_norm <- normalize(hr_new,method = 'range',range = c(0,1))
+hr_ntrain <- hr_norm[sample(seq(1,nrow(hr_norm)), (0.7 * nrow(hr_norm))), ]
+hr_ntest <- hr_norm[sample(seq(1,nrow(hr_norm)), (0.3 * nrow(hr_norm))), ]
+
+
+#model
+nn_accuracy <- c()
+nn_error_rate <- c()
+k_trials <- seq(1,50)
+for (k in k_trials) {
+  
+predict_class <- knn(hr_ntrain %>% dplyr::select(-Attrition),hr_ntest %>% dplyr::select(-Attrition),cl=as.factor(hr_ntrain$Attrition),k=k)
+hr_ntest$Attrition <- as.factor(hr_ntest$Attrition)
+predict_class <- as.factor(predict_class)
+cm <- confusionMatrix(predict_class,hr_ntest$Attrition,positive = "1")
+acc <- cm$overall['Accuracy']
+nn_accuracy <- c(nn_accuracy,acc)
+e_rate <- 1 -acc
+nn_error_rate <- c(nn_error_rate,e_rate)
+df <- data.frame(nn_accuracy,nn_error_rate)
+}
+plot(k_trials,nn_error_rate,type = "l") #error plot
+View(df)
+
+```
+
+
+NAIVE BAYES
+
+
+```{r}
+hr$Attrition=as.factor(hr$Attrition)
+
+hr_train = hr[sample(seq(1,nrow(hr)), (0.7*nrow(hr))),]
+hr_test = hr[sample(seq(1,nrow(hr)), (0.3*nrow(hr))),]
+
+
+
+```
+
+```{r}
+# NO NUMERICAL COL IN NAIVE BAYES
+#NO CATEGoRICAL COL IN KNN
+library(e1071)
+
+View(hr_train)
+model=naiveBayes(Attrition~Gender, data=hr_train)
+View(predict(model,hr_test, type='raw'))
+
+```
+
+
+```{r}
+library(dplyr)
+
+#Use the formula in the book to understan this 
+
+hr_train%>%filter(Attrition==0, Gender=='Female')%>% nrow()
+hr_train%>%filter(Attrition==0)%>%nrow()
+
+table(hr_train$Gender,hr_train$Attrition)
+```
+
+
+# job role multi variable
+```{r}
+model=naiveBayes(Attrition~JobRole, data=hr_train)
+View(predict(model,hr_test, type='raw'))
+table(hr_train$JobRole,hr_train$Attrition)
+
+```
+
+
+```{r}
+model=naiveBayes(Attrition~JobRole+Gender+OverTime, data=hr_train)
+View(predict(model,hr_test, type='raw'))
+
+hr_test[12,'JobRole']
+#table(hr_train$JobRole,hr_train$Attrition)
+```
+

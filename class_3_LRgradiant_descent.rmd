@@ -1,0 +1,226 @@
+---
+title: "class3ML"
+author: "Suhail AK"
+date: "May 3, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+to find gradient descent
+
+
+
+
+```{r}
+
+x <- rnorm(100)
+
+y=0.05 * x + 50
+df <- data.frame(x=x,y=y)
+View(df)
+
+lm(y~x,data = df)
+
+```
+here we got x as 0.05
+and x intercept is almost 0.
+now using gradient descent we will arrive at 0.05(which is a slope)
+
+gradient descent: reduce the error
+gradient ascent:  increase the accuracy
+
+
+
+
+```{r}
+
+m <- 100
+alpha <- 0.1 #keep changing alpha values
+iterations <- 1000
+errors_vals <- c()
+for (i in seq(1,iterations)){
+  df <- mutate(df,mx_vals = m * x)
+  df <- mutate(df, y_mx_vals = (y-mx_vals)^2)
+  cur_error <- sum(df$y_mx_vals)/nrow(df)
+  errors_vals <- c(errors_vals,cur_error)
+  df =  dplyr::mutate(df, xy_vals = x * y)
+  df = dplyr::mutate(df, mx_square = m * (x^2))
+  df = dplyr::mutate(df, xy_minus_mx2 = xy_vals - mx_square)
+  m_gradient = -2/nrow(df) * sum(df$xy_minus_mx2)
+  m = m - alpha * m_gradient
+  
+}
+print(m)
+View(df)
+
+{{plot(errors_vals)
+  lines(m,type = "l",col="red")}}
+
+
+```
+
+to reduce the iteration we have to give up on precision
+
+
+
+gradient descent example
+
+
+```{r}
+
+
+x <- rnorm(100)
+y=(0.05 * x) + 100
+df <- data.frame(x=x,y=y)
+
+lm(y~x,data = df)
+
+
+```
+
+```{r}
+m <- 0
+alpha <- 0.01 #keep changing alpha values
+iterations <- 1000
+c <- 0
+m_vals <- c()
+c_vals <- c()
+error_vals <- c()
+
+for (i in seq(1,iterations)){
+  m_vals <- c(m_vals,m)
+  c_vals <- c(c_vals,c)
+  
+  df <- mutate(df,mx_vals = m * x)              #formula for c_gradient
+  df <- mutate(df, y_mx_vals_c = (y-mx_vals-c))
+  c_gradient <- -2*sum(df$y_mx_vals_c)/nrow(df)
+  
+  df =  mutate(df, xy_vals = x * y)     #formula for m_gradient
+  df = mutate(df, mx_square = m * (x^2))
+  df = mutate(df,  cx_vals = c * x)
+  df = mutate(df, total_m = xy_vals - mx_square - cx_vals)
+  m_gradient = -2/nrow(df) * sum(df$total_m)
+  
+  df = mutate(df, current = (y - (m * x) - c)^2)       #to calculate error/current error
+  error_vals <- c(error_vals, sum(df$current)/nrow(df))
+  
+  m = m - alpha * m_gradient
+  c = c - alpha * c_gradient
+  
+}
+print(c(m,c))
+
+
+#install.packages("rgl")
+library(rgl)
+open3d()
+plot3d(x=m_vals,y=c_vals,z=error_vals)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+```{r}
+mse = function(x,y,m,c){
+  
+  yhat=m*x+c
+  error=sum((y-yhat)^2)/length(x)# error formula from book with yhat 
+  return(error)
+
+  }
+
+
+
+cuts=100
+c_ranges=seq(0,150,length.out = cuts)
+m_ranges=seq(0,5,length.out = cuts)
+zspace = c()
+mspace = c()
+cspace = c()
+
+for(i in m_ranges){
+  
+  for(j in c_ranges){
+    
+  
+    curr_z <- sum((df$y - i * df$x -j)^2) / nrow(df)
+    zspace=c(zspace,curr_z)
+    mspace = c(mspace, i)
+    cspace = c(cspace, j)
+    
+  }
+}
+ 
+open3d()
+plot3d(x=mspace,y=cspace,z=zspace,col = heat.colors(10))
+plot3d(x=m_vals,y=c_vals,z=error_vals,add = T)
+
+
+```
+
+
+
+now taking a realtime dataset and applying gradient descent
+
+here scaling x because the values of tv are very high
+
+
+```{r}
+adv <- read.csv("Advertising.csv")
+df <- data.frame(x=scale(adv$TV),y=adv$sales)
+alpha <- 1/nrow(df)
+m <- 0
+iterations <- 1000
+c <- 0
+m_vals <- c()
+c_vals <- c()
+error_vals <- c()
+
+for (i in seq(1,iterations)){
+  m_vals <- c(m_vals,m)
+  c_vals <- c(c_vals,c)
+  
+  df <- mutate(df,mx_vals = m * x)              #formula for c_gradient
+  df <- mutate(df, y_mx_vals_c = (y-mx_vals-c))
+  c_gradient <- -2*sum(df$y_mx_vals_c)/nrow(df)
+  
+  df =  mutate(df, xy_vals = x * y)     #formula for m_gradient
+  df = mutate(df, mx_square = m * (x^2))
+  df = mutate(df,  cx_vals = c * x)
+  df = mutate(df, total_m = xy_vals - mx_square - cx_vals)
+  m_gradient = -2/nrow(df) * sum(df$total_m)
+  
+  df = mutate(df, current = (y - (m * x) - c)^2)       #to calculate error/current error
+  error_vals <- c(error_vals, sum(df$current)/nrow(df))
+  
+  m = m - alpha * m_gradient
+  c = c - alpha * c_gradient
+  
+}
+print(c(m,c))
+
+
+#install.packages("rgl")
+library(rgl)
+open3d()
+plot3d(x=m_vals,y=c_vals,z=error_vals)
+
+```
+
+
+
+
+
+

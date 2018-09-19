@@ -1,0 +1,173 @@
+---
+title: "class10ML(recommendation system)"
+author: "Suhail AK"
+date: "May 22, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+topics to be covered
+
+Recommendation System
+
+Apriori algo
+collaborative filtering
+    - user based
+    - item based
+    
+    
+    
+Packages needed for Apriori algo
+
+```{r}
+#install.packages("arules")
+#install.packages("arulesViz")
+library(reshape2)
+#install.packages("recommenderlab")
+library(arules)
+library(arulesViz)
+library(recommenderlab)
+
+```
+
+Apriori
+
+```{r}
+data(Groceries)
+summary(Groceries)
+class(Groceries)
+dim(Groceries)
+str(Groceries)
+
+inspect(Groceries[1])
+
+
+head(Groceries@itemInfo,n=30)
+  
+model <- apriori(data = Groceries,parameter = list(support=0.03,confidence=0.3))
+inspect(model)
+
+
+#Support: Support is the basic probability of an event to occur. If we have an event to buy product A, Support(A) is the number of transactions which includes A divided by total number of transactions.
+
+#Confidence: The confidence of an event is the conditional probability of the occurrence; the chances of A happening given B has already happened.
+
+
+```
+
+
+```{r}
+
+x <- list(c("a","b","c","d"),c("a","d"),c("e","a","c","b","d"),c("a","b","e","d"))
+class(x)
+x_trans <- as(x,'transactions')
+x_trans
+inspect(x_trans[1:4])
+```
+
+
+```{r}
+model <- apriori(x_trans,parameter = list(support=0,confidence=0))
+inspect(model)
+```
+support calculations
+s(d) = f(D)/n
+ie. f(D) is count and n is no. of transactions
+
+```{r}
+inspect(sort(model,by='lift',decreasing = T))
+```
+
+data of Groceries
+
+
+```{r}
+data(Groceries)
+dim(Groceries)
+model <- apriori(Groceries,parameter = list(support=(30/9835),confidence=0.5))
+summary(model)
+
+itemFrequencyPlot(Groceries,topN=20,main='Relative Item Frequency Plot',type="relative",ylab="Item Frequency (Relative)")
+
+```
+
+user based collaborative filtering
+
+-cosine similarity
+    find cosine similarity between user1 and user 2
+    
+    
+working on ratings data
+
+```{r}
+library(reshape2)
+library(tidyr)
+rating <- read.csv("ratings.csv")
+str(rating)
+class(rating)
+View(rating)
+length(unique(rating$userId))# totally 671 users
+length(unique(rating$movieId))#totally 9066 movies
+
+ratings_matrix <- dcast(data=rating,userId~movieId, value.var = 'rating')
+
+View(ratings_matrix[1:20,1:20])
+
+dim(ratings_matrix)
+
+rankings_matrix <- as(as.matrix(ratings_matrix[,-1]),'realRatingMatrix')
+
+rankings_matrix@data
+
+ubcf <- Recommender(rankings_matrix,method='UBCF', param=list(method='cosine',nn=10) )
+#nn is no of neighbours ubcf user based collaboration
+
+result <- predict(ubcf, rankings_matrix[5,],n=5)
+
+movies_sugg <- as(result,'list')[[1]]
+
+movies <- read.csv("movies.csv")
+
+movies %>% filter(movieId %in% movies_sugg) %>% select(title)
+
+View(rankings_matrix[1:10, 1:10])
+```
+
+Item based collaborative filtering.
+IBCF: 
+
+(movieid~userid)
+method will have IBCF 
+there is no nn in parameter list.
+
+
+```{r}
+
+rating_mat <- dcast(data =rating,movieId~userId,value.var = 'rating')
+View(rating_mat[1:20,1:20])
+dim(rating_mat)
+rankings_matrix <- as(as.matrix(ratings_matrix[,-1]),'realRatingMatrix')
+
+ibcf <- Recommender(rankings_matrix,method='IBCF', param=list(method='cosine') )
+
+result <- predict(ubcf, rankings_matrix[1,],n=5)
+
+movies_sugg <- as(result,'list')[[1]]
+
+```
+
+```{r}
+data("Jester5k")
+Jester5k
+class(Jester5k)
+
+ibcf <- Recommender(Jester5k,method='IBCF',parameter=list(method='cosine',k=10))
+
+pred <- predict(ibcf,Jester5k[1], n=5)
+as(pred,'list')
+
+```
+

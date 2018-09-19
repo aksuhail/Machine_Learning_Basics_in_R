@@ -1,0 +1,136 @@
+---
+title: "class7ML(RandomFOrest)"
+author: "Suhail AK"
+date: "May 16, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rpart)
+library(dplyr)
+library(randomForest)
+ 
+
+```
+
+randomForest
+
+we build many trees instead of one tree and sample for each tree varies
+mtry - no. of input predictors at a time(randomly selected) formula : sqrt(no. of input column except Attrition)
+ntree - no. of decision tree that we grow
+here samples for each tree might overlap
+
+weak learner : Single decision tree (generally used in boosting algo) /bias or varience
+Strong Learner : Combination of many weak learner
+
+```{r}
+hr <- read.csv("HR Analytics.csv")
+
+
+hr_train <- hr[sample(seq(1,nrow(hr)), (0.7 * nrow(hr))), ]
+
+
+hr_test <- hr[sample(seq(1,nrow(hr)), (0.3 * nrow(hr))), ]
+hr_test$Attrition <- as.factor(hr_test$Attrition)
+
+
+mtry=sqrt(length(colnames(hr_train))-1)
+model_rf <- randomForest(Attrition~.,data = hr_train, ntree=400,mtry=mtry)
+hr_test$predicted <- predict(model_rf,hr_test)
+hr_test$predicted <- ifelse(hr_test$predicted > 0.5,1,0)
+hr_test$predicted <- as.factor(hr_test$predicted)
+str(hr_test)
+
+cm <- confusionMatrix(hr_test$predicted,hr_test$Attrition,positive = '1') #both predicted and attrition should be factor
+cm$overall['Accuracy']*100
+cm$byClass['Sensitivity']*100
+
+
+```
+
+```{r}
+acc <- c()
+sens <- c()
+ntre <- c()
+
+for(i in 10:100){
+  mtry=sqrt(length(colnames(hr_train))-1)
+  model_rf <- randomForest(Attrition~.,data = hr_train, ntree=i,mtry=mtry)
+  hr_test$predicted <- predict(model_rf,hr_test)
+  hr_test$predicted <- predict(model_rf,hr_test)
+  hr_test$predicted <- ifelse(hr_test$predicted > 0.5,1,0)
+  hr_test$predicted <- as.factor(hr_test$predicted)
+  cm <- confusionMatrix(hr_test$predicted,hr_test$Attrition,positive = '1')#both predicted and attrition should be factor
+  acc <- append(acc,cm$overall['Accuracy']*100)
+  sens <- append(sens,cm$byClass['Sensitivity']*100)
+  ntre <- append(ntre,i)
+  df <- data.frame(ntre,acc,sens)
+}
+View(df)
+df %>% arrange(-acc,-sens)
+plot(df$ntre,df$acc,type = "l")
+
+
+```
+
+building a random forest using decision tree(where no of dtree will be 10) 
+bagging techinique(overfit)
+
+
+```{r}
+
+library(rpart)
+
+hr_train <- hr[sample(seq(1,nrow(hr)), (0.7 * nrow(hr))), ]
+hr_test <- hr[sample(seq(1,nrow(hr)), (0.3 * nrow(hr))), ]
+
+
+
+input_predictors <- colnames(hr_train %>% dplyr::select(-Attrition))
+mtry <- round(sqrt(length(input_predictors)))
+#input_predictors[sample(1:length(input_predictors),mtry)]
+ntree <- 100
+result <- data.frame(actual= hr_test$Attrition)
+
+for(i in 1:ntree){
+  sample_predictors <- input_predictors[sample(1:length(input_predictors),mtry)]
+  samples_index <- sample(seq(1,nrow(hr_train)), (0.6*nrow(hr_train)))
+  sample_data <- hr_train[samples_index,c(sample_predictors,'Attrition')]
+  curr_model <- rpart(Attrition~.,data = sample_data)
+  result[,paste0('tree_',i,collapse = '')]=predict(curr_model,(hr_test %>% dplyr::select(sample_predictors)),type = 'class')
+}
+
+result$count_0 <- rowSums((result %>% dplyr::select(-actual))== 0)
+result$count_1 <- rowSums((result %>% dplyr::select(-actual))==1)
+result$final <- ifelse(result$count_0 >result$count_1,0,1)
+
+View(result)
+table(result$final,result$actual)
+result$final <- as.factor(result$final)
+confusionMatrix(result$final,result$actual,positive = '1')
+
+
+```
+
+
+boosting has underfit
+adaptive Boost
+```{r}
+#install.packages("adabag")
+library(adabag)
+hr_train$Attrition <- as.factor(hr_train$Attrition)
+
+model_boost <- boosting(Attrition~.,data = hr_train)
+str(hr_train)
+
+predict_obj <- predict(model_boost,hr_test)
+hr_test$pred <- predict_obj$class
+hr_test$Attrition <- as.factor(hr_test$Attrition)
+hr_test$pred <- as.factor(hr_test$pred)
+cm <- confusionMatrix(hr_test$pred,hr_test$Attrition)
+cm$overall['Accuracy']*100
+cm$byClass['Sensitivity']*100
+
+```
+

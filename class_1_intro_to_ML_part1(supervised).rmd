@@ -1,0 +1,281 @@
+---
+title: "REGRESSION AND CLASSIFICATION PROBLEM"
+author: "Suhail AK"
+date: "25 April 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+Types of Models
+-Supervised learning
+there is inputdata---->output data
+
+
+
+-Unsupervised learning
+clustering problem
+there is no output only input data.
+
+
+-Semi-supervised
+
+
+
+three mainly used algorithm
+-regression
+whenever we are predicting numeric values which is continuous/discrete
+for eg: predict height of a person
+sales(continuous number)
+salary(discrete)
+
+output: continuous variable
+
+
+models: 
+-linear regression
+-multivalue regression
+-decision tree
+
+
+-classification
+categorical variable
+classifying into Positive, negative, neutral
+eg: Yes or No
+0,1
+human,animal,place,object
+
+model:
+decision tree
+random forrest
+SVM(support vector machines)
+Logistic regression
+
+
+
+unsupervised:
+-clustering
+grouping of your observation based on input variable.
+
+model: 
+k-mean
+DBSCAN
+
+
+Machine learning steps
+
+
+1. Data preprocessing/Transformation
+2. Data imputation/outlier treatment
+3. Split data
+    - testing
+    - training
+4. Feature selection
+5. Fit a model
+6. Predict Output(not applicable for clustering)
+7. Validate
+8. Performance Evaluation
+its a cyclic process if you want improve the performance go back to the necessary previous steps.
+
+
+
+Regression Problem
+
+1. Formulit-linear Regression
+
+Importing Advertising data set
+
+
+```{r}
+library(dplyr)
+ad <- read.csv("Advertising.csv")
+View(ad)
+adv <- ad[,-1]
+
+#checking for missing value
+sapply(ad, function(x) sum(is.na(x)))
+
+#checking for outliers
+sapply(ad, function(x) length(boxplot.stats(x)$out))
+
+
+#feature selection  both are numeric hence use correlation analysis
+cor(adv)
+
+```
+
+- pick both tv and radio for selection since they have very low correlation.
+- more no of feature then more error in y=mx+c
+-here there is low correlation between sales and newspaper hence we can ignore newspaper column.
+
+
+nextstep:
+
+splitting data into training and testing
+-decide on what percent of data for test and train
+-80% training
+-20% testing
+ie total sample in adv is 200
+hence - 160 for training
+      - 40 for testing
+      
+      
+we use sampling with replacement
+
+
+```{r}
+
+sample(c(1,2,3,4,5,6,7,8,9,10),5)
+sample(seq(1,200),5)
+
+adv_training <- adv[sample(seq(1,200),0.8*nrow(adv)),]
+adv_testing <- adv[sample(seq(1,200),0.2*nrow(adv)),]
+
+View(adv_testing)
+View(adv_training)
+adv_training <- adv_training[order(as.numeric(row.names(adv_training))),]
+adv_testing <- adv_testing[order(as.numeric(row.names(adv_testing))),]
+
+```
+
+
+
+model building
+
+
+
+```{r}
+#fitting model
+adv_model <- lm(sales~TV+radio,data = adv_training)
+adv_model
+
+predictmanualsales <- 0.04562 * 230 + 0.18833 * 37.8 + 0 + 2.97011
+predictmanualsales #where as actuall sales is 22.1
+```
+
+mathematical equation for this model
+
+sales=0+0.04626(TV)+0.18837(radio) + 2.85788 
+here 2.85788 is a coeffecient.
+
+```{r}
+summary(adv_model)
+
+```
+
+
+fitting model with newspaper(for just comparing)
+check out * in summary
+*** means significant
+if no star then not signifcant
+
+```{r}
+adv_model1 <- lm(sales~TV+radio+newspaper,data = adv_training)
+summary(adv_model1)
+```
+
+predict for test data
+doing manually
+
+sales=0+0.04626(TV)+0.18837(radio) + 2.85788 
+
+this is mainly bench marking.
+
+```{r}
+sales1=0+0.04626*(180.8)+0.18837*(10.8)+2.85788
+#13.25608 which is close to 12.9 which is the actuall test value
+#to predict use predict function on adv_testing
+library(dplyr)
+adv_testing$sales_predicted <- predict(adv_model,adv_testing %>% dplyr::select(-sales,-newspaper))
+View(adv_testing)
+
+{{plot(adv_testing$sales,type = "l")
+  lines(adv_testing$sales_predicted,type = "l",col="red")}}
+
+
+```
+look for error in each observation(ie compare sales and predict sales)
+
+to calculate sum of sqaure error(SSE)
+
+subtract actual value with predicted value
+
+
+```{r}
+
+adv_testing$error <- adv_testing$sales - adv_testing$sales_predicted
+adv_testing$errorsquare <- adv_testing$error ^ 2
+sum(adv_testing$errorsquare)
+View(adv_testing)
+plot(adv_testing$errorsquare,type = "l")
+
+
+
+```
+
+Classification Problem
+
+using bank dataset
+to build a model for which customer will accept the loan or not
+
+model used:Decision tree
+
+step1: restructuring data
+step2: detecting na values
+step3:detecting outliers
+
+```{r}
+bank <- read.csv("bank-full.csv")
+View(bank)
+bank_train <- bank[sample(seq(1,nrow(bank)),0.8*nrow(bank)),]
+bank_test <- bank[sample(seq(1,nrow(bank)),0.2*nrow(bank)),]
+dim(bank_train)
+dim(bank_test)
+#install.packages("tree") for decision tree
+
+library(tree)
+
+bank_model <- tree(y~.,data = bank)
+bank_model
+summary(bank_model)
+predict_response <- predict(bank_model,bank_test %>% dplyr::select(-y))
+predict_response <- as.data.frame(predict_response)
+View(predict_response)
+predict_response$predictedyes <- if_else(predict_response$no > predict_response$yes,"no","yes")
+View(predict_response)
+bank_test$predictedyes <- predict_response$predictedyes
+View(bank_test)
+#to find no of error
+bank_test$pred_error <- bank_test$y !=bank_test$predictedyes
+sum(bank_test$pred_error)*100/nrow(bank_test) #error percentage
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
